@@ -1,0 +1,26 @@
+services:
+  serviceit-brain:
+    build: .                 # Tells Docker the Dockerfile is RIGHT HERE
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - serviceit-db
+
+  serviceit-db:
+    image: ankane/pgvector:latest
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_DB=serviceit
+    ports:
+      - "5432:5432"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib
+    volumes:
+      - ./otel-config.yaml:/etc/otelcol/config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
