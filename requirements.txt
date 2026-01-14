@@ -1,0 +1,28 @@
+# --- Web Framework & Server ---
+# FastAPI remains the gold standard for high-performance async APIs
+fastapi==0.115.6
+uvicorn[standard]==0.38.0
+
+# --- OpenTelemetry (The Core of ServiceIT) ---
+# Using the latest 1.39/0.60b series for Python 3.13 compatibility
+opentelemetry-api==1.39.1
+opentelemetry-sdk==1.39.1
+opentelemetry-exporter-otlp==1.39.1
+# Auto-instrumentation for FastAPI
+opentelemetry-instrumentation-fastapi==0.60b1
+
+# --- Database & AI ---
+# SQLAlchemy 2.0.45 is the current stable release as of Dec 2025
+sqlalchemy==2.0.45
+# Psycopg 3.2 is required for optimal async performance
+psycopg[binary]==3.2.3
+# pgvector for AI-driven post-mortem similarity search
+pgvector==0.3.6
+
+# --- Configuration & Real-time ---
+pydantic-settings==2.12.5
+python-dotenv==1.0.1
+websockets==14.1
+
+fpdf2==2.7.9        # NEW: For generating the PDF reports
+matplotlib==3.10.0  # NEW: For generating static charts to embed in the PDF
