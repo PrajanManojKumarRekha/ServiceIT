@@ -1,26 +1,106 @@
 services:
-  serviceit-brain:
-    build: .                 # Tells Docker the Dockerfile is RIGHT HERE
-    ports:
-      - "8000:8000"
-    env_file:
-      - ./backend/.env
-    depends_on:
-      - serviceit-db
-
   serviceit-db:
-    image: ankane/pgvector:latest
+    image: pgvector/pgvector:pg16
+    container_name: serviceit-db
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password123
-      - POSTGRES_DB=serviceit
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  serviceit-api:
+    build: .
+    container_name: serviceit-api
     ports:
-      - "5432:5432"
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    group_add:
+      - "0"
+    volumes:
+      - ./outputs:/app/outputs
+      - ./ui:/app/ui:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      serviceit-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - backend_net
+      - host_net
+
+  serviceit-worker:
+    build: .
+    container_name: serviceit-worker
+    command: ["rq", "worker", "serviceit-ingestion"]
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    volumes:
+      - ./outputs:/app/outputs
+      - ./ui:/app/ui:ro
+    depends_on:
+      serviceit-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - backend_net
+      - host_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: serviceit-redis
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    networks:
+      - backend_net
+
+  serviceit-retention:
+    build: .
+    container_name: serviceit-retention
+    command: ["python", "-m", "services.retention"]
+    env_file:
+      - .env
+    depends_on:
+      serviceit-db:
+        condition: service_healthy
+    networks:
+      - backend_net
+    restart: "no"
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: serviceit-otel
+    command: ["--config=/etc/otel/config.yaml"]
     volumes:
-      - ./otel-config.yaml:/etc/otelcol/config.yaml
+      - ./otel-config.yaml:/etc/otel/config.yaml:ro
     ports:
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    depends_on:
+      - serviceit-api
+    networks:
+      - backend_net
+      - host_net
+
+networks:
+  backend_net:
+    driver: bridge
+    internal: true
+  host_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
